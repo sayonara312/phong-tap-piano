@@ -7,6 +7,7 @@ import { MODULES, LEVELS } from "./modules.js";
 import { findPreset } from "../presets/index.js";
 import { ensureAudio, chime } from "./audio.js";
 import { renderStudio, teardownStudio, studioRedraw } from "./studio.js";
+import { SYNC, initSync, markDirty, onSync, saveConfig, syncAll, testServer } from "./sync.js";
 
 const $ = s => document.querySelector(s);
 const TODAY = todayVN();
@@ -18,10 +19,10 @@ const lib = {
   list: () => store.get("ptp-songs", []),
   saveList: l => store.set("ptp-songs", l),
   get: id => store.get("ptp-song-" + id, null),
-  put: rec => store.set("ptp-song-" + rec.id, rec),
-  del(id) { store.del("ptp-song-" + id); store.del("ptp-prog-" + id); this.saveList(this.list().filter(x => x.id !== id)); },
+  put(rec) { rec.updatedAt = Date.now(); const ok = store.set("ptp-song-" + rec.id, rec); if (ok) markDirty("song", rec.id); return ok; },
+  del(id) { store.del("ptp-song-" + id); store.del("ptp-prog-" + id); this.saveList(this.list().filter(x => x.id !== id)); markDirty("song", id); },
   prog: id => store.get("ptp-prog-" + id, {}),
-  saveProg: (id, p) => store.set("ptp-prog-" + id, p)
+  saveProg(id, p) { p.updatedAt = Date.now(); store.set("ptp-prog-" + id, p); markDirty("prog", id); }
 };
 
 /* ───────── nạp bài ───────── */
@@ -50,6 +51,7 @@ function compute(S) {
 /* ───────── định tuyến: #  |  #s-<id>  |  #s-<id>-b<n> ───────── */
 function route() {
   teardownStudio(); resetTimer();
+  if (location.hash === "#cai-dat") return renderSettings();
   const m = (location.hash || "").match(/^#s-([a-z0-9]+)(?:-b(\d+))?$/);
   if (!m) return renderLibrary();
   const S = loadSong(m[1]);
@@ -67,7 +69,8 @@ function renderLibrary() {
   const songs = lib.list();
   root.append(h("header", { class: "lib-head" },
     h("h1", null, "Phòng tập piano"),
-    h("p", null, "Chọn một file MIDI. Trang phân tích bài (giọng, nhịp, đoạn, độ khó), xếp lộ trình theo lịch tập của bạn, và có đàn hướng dẫn cho từng buổi.")));
+    h("p", null, "Chọn một file MIDI. Trang phân tích bài (giọng, nhịp, đoạn, độ khó), xếp lộ trình theo lịch tập của bạn, và có đàn hướng dẫn cho từng buổi."),
+    h("div", { class: "row" }, syncChip(), h("a", { href: "#cai-dat", class: "muted" }, "Lưu trữ và dùng trên điện thoại"))));
   if (songs.length) {
     const grid = h("div", { class: "cards" });
     for (const s of songs) {
@@ -151,7 +154,7 @@ function addForm() {
     if (settings.target <= settings.start) { st.textContent = "Ngày biểu diễn phải sau ngày bắt đầu."; st.classList.add("err"); return; }
     const song = buildSong(parseMidi(buf));
     const id = uid(); const rec = { id, name: name.value.trim() || fname, fileName: fname, midi: bytesToB64(buf), settings, usePreset: !!findPreset(song), createdAt: TODAY, fp: fingerprint(song) };
-    if (!store.set("ptp-song-" + id, rec)) { st.textContent = "Trình duyệt không cho lưu thêm (bộ nhớ đầy hoặc bị chặn)."; st.classList.add("err"); return; }
+    if (!lib.put(rec)) { st.textContent = "Trình duyệt không cho lưu thêm (bộ nhớ đầy hoặc bị chặn)."; st.classList.add("err"); return; }
     lib.saveList([...lib.list(), { id, name: rec.name }]);
     go("#s-" + id);
   });
@@ -178,7 +181,7 @@ function renderSong(S, n) {
   const sel = h("select", { id: "mSel", onchange: e => go("#s-" + S.rec.id + (e.target.value === "0" ? "" : "-b" + e.target.value)) },
     h("option", { value: "0", selected: !n }, "Tổng quan bài"), L.map(l => h("option", { value: l.n, selected: l.n === n }, "Bài " + l.n + " · " + fmtDate(l.date, false) + " · " + l.title + (prog[l.n]?.done ? " ✓" : ""))));
   root.append(h("aside", { class: "rail" },
-    h("a", { class: "back", href: "#" }, "‹ Thư viện"),
+    h("div", { class: "row" }, h("a", { class: "back", href: "#" }, "‹ Thư viện"), syncChip()),
     h("div", { class: "brand" }, h("h1", null, S.rec.name), h("p", null, S.A.key.name + " · " + S.A.barCount + " ô · " + L.length + " buổi")),
     h("div", { class: "count" }, h("b", { class: "num" }, left > 0 ? String(left) : left === 0 ? "Hôm nay" : "✓"), h("span", null, left > 0 ? "ngày nữa tới " + fmtDate(target, false) : left === 0 ? "là ngày biểu diễn" : "đã qua ngày biểu diễn")),
     h("a", { class: "li ov", href: "#s-" + S.rec.id, "aria-current": !n ? "true" : "false" }, h("span", { class: "n" }, "◎"), h("span", { class: "t" }, "Tổng quan và lịch")),
@@ -351,6 +354,15 @@ function renderLesson(S, n, page, prog) {
     h("label", { class: "pass", for: "done-" + n }, doneCb, h("b", null, "Đã đạt bài " + n)),
     h("span", { class: "status" }, "Sau buổi tập, ghi lại mục nào đạt và chỗ nào khó."),
     n < N ? h("a", { class: "btn", href: "#s-" + id + "-b" + (n + 1) }, "Bài " + (n + 1) + " ›") : null));
+
+  // Thanh điều hướng dưới cùng trên điện thoại
+  const miniClock = h("span", { class: "num" }, clock.textContent);
+  new MutationObserver(() => { miniClock.textContent = clock.textContent; }).observe(clock, { childList: true, characterData: true, subtree: true });
+  page.append(h("nav", { class: "bottom-nav", "aria-label": "Điều hướng buổi tập" },
+    h("a", { class: "bn" + (n === 1 ? " off" : ""), href: n > 1 ? "#s-" + id + "-b" + (n - 1) : "#s-" + id }, "‹", h("small", null, n > 1 ? "Bài " + (n - 1) : "Tổng quan")),
+    h("button", { class: "bn clock-btn", type: "button", onclick: () => startBtn.click() }, miniClock, h("small", null, "Hẹn giờ")),
+    h("a", { class: "bn", href: "#s-" + id }, "◎", h("small", null, "Tổng quan")),
+    n < N ? h("a", { class: "bn", href: "#s-" + id + "-b" + (n + 1) }, "›", h("small", null, "Bài " + (n + 1))) : h("span", { class: "bn off" }, "›", h("small", null, "Hết"))));
 }
 
 /* ───────── theme ───────── */
@@ -358,4 +370,73 @@ const mq = window.matchMedia("(prefers-color-scheme: dark)");
 mq.addEventListener && mq.addEventListener("change", studioRedraw);
 new MutationObserver(studioRedraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
+/* ───────── đồng bộ, cài đặt lên điện thoại ───────── */
+function onRemoteChange() {
+  for (const k in cache) delete cache[k];
+  if (TM.running || document.querySelector(".studio canvas") && document.querySelector("#playBtn")?.textContent.includes("Dừng")) { pendingRefresh = true; return; }
+  route();
+}
+let pendingRefresh = false;
+document.addEventListener("visibilitychange", () => { if (pendingRefresh && document.visibilityState === "visible" && !TM.running) { pendingRefresh = false; route(); } });
+
+const SYNC_TEXT = { off: "Lưu trên trình duyệt này", checking: "Đang tìm máy chủ…", ok: "Đã lưu trên máy chủ", saving: "Đang lưu…", offline: "Ngoại tuyến · sẽ lưu sau", auth: "Cần mã truy cập", error: "Lỗi đồng bộ" };
+function syncChip() {
+  const el = h("button", { class: "sync-chip", type: "button", title: "Lưu trữ và đồng bộ", onclick: () => go("#cai-dat") });
+  const paint = st => { el.dataset.state = st.status; el.textContent = SYNC_TEXT[st.status] || st.status; el.title = st.msg || ""; };
+  paint(SYNC); const off = onSync(paint);
+  new MutationObserver((_, obs) => { if (!el.isConnected) { off(); obs.disconnect(); } }).observe(document.body, { childList: true, subtree: true });
+  return el;
+}
+
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; document.querySelectorAll(".install-btn").forEach(b => b.hidden = false); });
+const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+function installCard() {
+  if (standalone()) return null;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const btn = h("button", { class: "btn primary install-btn", hidden: !installEvt, onclick: async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; btn.hidden = true; } }, "Cài lên màn hình chính");
+  return h("div", { class: "card install" }, h("h3", null, "Dùng trên điện thoại"),
+    h("p", null, ios ? "Trên iPhone: mở trang bằng Safari, bấm nút Chia sẻ rồi chọn “Thêm vào MH chính”." : "Trên Android/Chrome: bấm nút bên dưới, hoặc menu ⋮ → “Cài đặt ứng dụng” / “Thêm vào màn hình chính”."),
+    h("p", { class: "muted" }, "Cài xong, trang mở toàn màn hình như một ứng dụng và vẫn mở được phần đã tải khi mất mạng. Cần mở trang qua HTTPS (hoặc localhost) thì mới cài được."),
+    btn);
+}
+
+function renderSettings() {
+  document.title = "Lưu trữ · Phòng tập piano";
+  const root = $("#app"); root.className = "lib"; root.innerHTML = "";
+  const base = h("input", { type: "url", id: "srvBase", placeholder: "Để trống nếu trang chạy trên chính máy chủ", value: SYNC.cfg.base || "" });
+  const token = h("input", { type: "password", id: "srvToken", placeholder: "PTP_TOKEN (nếu máy chủ có đặt)", value: SYNC.cfg.token || "", autocomplete: "off" });
+  const st = h("div", { class: "status" }, SYNC.msg);
+  const last = SYNC.lastOk ? "Lần đồng bộ gần nhất: " + new Date(SYNC.lastOk).toLocaleString("vi-VN") : "Chưa đồng bộ lần nào.";
+  const form = h("form", { class: "card add" },
+    h("h2", null, "Lưu trên máy chủ"),
+    h("p", null, "Khi bật, bài, lịch và tiến độ được lưu trên máy chủ của bạn, nên mở trên điện thoại hay máy tính đều thấy giống nhau. Trình duyệt vẫn giữ một bản sao để dùng khi mất mạng; thay đổi lúc đó sẽ tự lưu lên khi có kết nối."),
+    h("div", { class: "row" }, syncChip(), h("span", { class: "muted" }, last)),
+    h("label", { for: "srvBase" }, "Địa chỉ máy chủ", base),
+    h("label", { for: "srvToken" }, "Mã truy cập", token),
+    h("div", { class: "row" },
+      h("button", { class: "btn primary", type: "submit" }, "Kết nối và đồng bộ"),
+      h("button", { class: "btn", type: "button", onclick: async () => { st.textContent = "Đang đồng bộ…"; await syncAll(); st.textContent = SYNC.msg; } }, "Đồng bộ ngay"),
+      h("button", { class: "btn", type: "button", onclick: () => { saveConfig({ mode: "off" }); SYNC.enabled = false; initSync(onRemoteChange); st.textContent = "Đã tắt. Dữ liệu chỉ lưu trên trình duyệt này."; } }, "Tắt đồng bộ")),
+    st);
+  form.addEventListener("submit", async e => {
+    e.preventDefault(); st.classList.remove("err"); st.textContent = "Đang kiểm tra…";
+    const err = await testServer(base.value.trim(), token.value.trim());
+    if (err) { st.textContent = err; st.classList.add("err"); return; }
+    saveConfig({ mode: "on", base: base.value.trim(), token: token.value.trim() });
+    await initSync(onRemoteChange); st.textContent = SYNC.msg;
+  });
+  root.append(h("a", { class: "back", href: "#" }, "‹ Thư viện"), form, installCard(),
+    h("section", { class: "sec how" }, h("h2", null, "Chạy máy chủ"),
+      h("ol", null,
+        h("li", null, "Trên máy tính: ", h("code", null, "npm run serve"), " (hoặc ", h("code", null, "node tools/serve.js"), "). Cửa sổ lệnh sẽ in địa chỉ cho điện thoại cùng Wi-Fi, dạng http://192.168.x.x:8080."),
+        h("li", null, "Muốn mở khi ra ngoài: đưa máy chủ lên Internet (VPS, Render, Railway, Fly.io… có ổ đĩa lưu lâu dài) hoặc dùng Tailscale để điện thoại vào được máy tính ở nhà. Khi mở ra Internet, đặt biến môi trường PTP_TOKEN rồi nhập mã đó ở ô trên."),
+        h("li", null, "Xem chi tiết trong docs/MAY-CHU.md của repo."))));
+}
+
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1") && !/claude\.ai|claudeusercontent/.test(location.hostname)) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+
 route();
+initSync(onRemoteChange);

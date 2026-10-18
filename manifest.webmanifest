@@ -1,0 +1,17 @@
+{
+  "name": "Phòng tập piano",
+  "short_name": "Tập piano",
+  "description": "Phân tích file MIDI, xếp lộ trình tập theo lịch và đàn hướng dẫn cho từng buổi.",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#EEF1EE",
+  "theme_color": "#1E6A62",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

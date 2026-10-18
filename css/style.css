@@ -224,3 +224,39 @@ details summary{cursor:pointer;color:var(--ink);font-size:14px}
 .meter i{display:block;height:100%;background:var(--accent)}
 .blk-body{min-width:0}
 .big{font-family:var(--f-display);font-size:22px}
+
+/* ── đồng bộ ── */
+.sync-chip{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 10px 3px 22px;font-size:12px;cursor:pointer;position:relative}
+.sync-chip::before{content:"";position:absolute;left:9px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--line)}
+.sync-chip[data-state="ok"]::before{background:var(--good)}
+.sync-chip[data-state="saving"]::before,.sync-chip[data-state="checking"]::before{background:var(--accent)}
+.sync-chip[data-state="offline"]::before,.sync-chip[data-state="auth"]::before,.sync-chip[data-state="error"]::before{background:var(--warn)}
+.sync-chip[data-state="auth"],.sync-chip[data-state="error"]{color:var(--warn);border-color:var(--warn)}
+.add input[type=url],.add input[type=password]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:15px}
+code{font-size:.92em;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+.install h3{font-size:18px}
+.install p{margin:0}
+
+/* ── điện thoại ── */
+.bottom-nav{display:none}
+@media (max-width:900px){
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  .bottom-nav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
+    padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+  .bn{display:flex;flex-direction:column;align-items:center;gap:0;padding:4px 0;border:0;background:none;color:var(--ink);text-decoration:none;font-size:20px;line-height:1.1;cursor:pointer;font-family:var(--f-body)}
+  .bn small{font-size:11px;color:var(--muted)}
+  .bn.off{opacity:.4;pointer-events:none}
+  .clock-btn span{font-size:17px;font-weight:600}
+  .navrow{display:none}
+  .timer .clock{font-size:24px}
+  .blk{grid-template-columns:52px minmax(0,1fr);padding:12px}
+  .head h2{font-size:26px}
+  .studio{padding:12px}
+  .ctrls{gap:8px 12px}
+  .keys{height:104px}
+}
+@media (display-mode: standalone){ .install{display:none} }
+.instrument-wrap{display:flex;flex-direction:column;border-radius:10px;overflow:hidden}
+.instrument-wrap .staff{border-radius:10px 10px 0 0}
+.instrument-wrap .instrument{border-radius:0}
+.instrument-wrap .keys{border-radius:0 0 10px 10px}

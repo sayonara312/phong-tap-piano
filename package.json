@@ -6,7 +6,7 @@
   "description": "Phòng tập piano: phân tích file MIDI, tự sinh lộ trình tập theo lịch, và đàn hướng dẫn trong trình duyệt.",
   "scripts": {
     "analyze": "node tools/analyze.js",
-    "serve": "python3 -m http.server 8080"
+    "serve": "node tools/serve.js 8080"
   },
   "license": "MIT"
 }

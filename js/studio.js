@@ -32,11 +32,12 @@ function openTool(i, body) {
   if (fn) fn(t, body);
 }
 function instrument(withCanvas) {
+  // Khung nốt rơi cuộn ngang cùng bàn phím; khuông nhạc thì đứng yên phía trên để luôn nhìn thấy trên điện thoại.
   const inner = h("div", { class: "inner" });
-  const top = withCanvas ? h("canvas", { class: "roll" }) : h("div", { class: "staff" });
   const keys = h("div", { class: "keys" });
-  inner.append(top, keys);
-  return { el: h("div", { class: "instrument" }, inner), top, keys };
+  if (withCanvas) { const top = h("canvas", { class: "roll" }); inner.append(top, keys); return { el: h("div", { class: "instrument" }, inner), top, keys, inner }; }
+  const top = h("div", { class: "staff" }); inner.append(keys);
+  return { el: h("div", { class: "instrument-wrap" }, top, h("div", { class: "instrument" }, inner)), top, keys, inner };
 }
 function nameSeg(onChange) {
   const opts = [["sol", "Đô Rê Mi"], ["let", "C D E"], ["off", "Ẩn tên"]];
@@ -106,7 +107,7 @@ function toolClef(tool, body) {
   const ins = instrument(false); let onPress = () => {};
   const kb = new Keyboard(ins.keys, m => onPress(m));
   kb.build(...(tool.clef === "bass" ? [36, 71] : tool.clef === "treble" ? [48, 83] : [36, 83]));
-  ins.el.firstChild.style.minWidth = (tool.clef === "mixed" ? 640 : 520) + "px";
+  ins.inner.style.minWidth = (tool.clef === "mixed" ? 640 : 520) + "px";
   const prompt = h("div", { class: "big" }, "Nốt này là phím nào?");
   const fb = h("div", { class: "status" }, "Bấm “Bắt đầu 10 câu”. Gọi tên nốt thành tiếng rồi bấm đúng phím.");
   const score = h("span", { class: "chip num" }, "0/10");
@@ -247,7 +248,7 @@ function toolSong(tool, body) {
   if (!sel.notes.length) { lo = 60; hi = 72; }
   const [klo, khi] = rangeFor(lo, hi); kb.build(klo, khi);
   const whites = [...Array(khi - klo + 1)].filter((_, i) => !isBlack(klo + i)).length;
-  ins.el.firstChild.style.minWidth = Math.max(520, whites * 15) + "px";
+  ins.inner.style.minWidth = Math.max(520, whites * 15) + "px";
 
   const canvas = ins.top; const g = canvas.getContext("2d");
   function sizeCanvas() { const dpr = window.devicePixelRatio || 1; canvas.width = Math.round(canvas.clientWidth * dpr); canvas.height = Math.round(canvas.clientHeight * dpr); g.setTransform(dpr, 0, 0, dpr, 0, 0); }

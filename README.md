@@ -7,16 +7,19 @@
 3. **Xếp lộ trình** theo lịch của người tập (ngày bắt đầu, ngày biểu diễn, các thứ trong tuần, số phút mỗi buổi, trình độ). Nếu không đủ thời gian cho cả bài, tự chọn **bản rút gọn** (luôn giữ mở đầu và đoạn kết).
 4. **Từng buổi tập**: nhạc lý đúng lúc cần, kế hoạch theo phút có đồng hồ, metronome gợi ý, tiêu chí “đạt”, lỗi hay gặp, câu tự kiểm tra, và **đàn hướng dẫn** (nốt rơi xuống bàn phím, chế độ từng bước, chọn tay, chỉnh tốc độ, metronome, vạch pedal, trắc nghiệm đọc nốt khóa Sol/Fa, gam và hợp âm của giọng).
 
-Mọi dữ liệu (file MIDI, lịch, tiến độ) chỉ nằm trong trình duyệt của người dùng (`localStorage`). Kho mã này **không chứa file MIDI hay bản phổ** nào.
+Dữ liệu (file MIDI, lịch, tiến độ) luôn có một bản trong trình duyệt để dùng khi mất mạng. Khi chạy kèm máy chủ (`npm run serve`), dữ liệu được **lưu thêm trên máy chủ và đồng bộ giữa điện thoại và máy tính**. Trang cài được lên màn hình chính điện thoại (PWA). Xem [docs/MAY-CHU.md](docs/MAY-CHU.md).
+
+Kho mã này **không chứa file MIDI hay bản phổ** nào.
 
 ## Chạy thử
 
 ```bash
-python3 -m http.server 8080      # rồi mở http://localhost:8080
+npm run serve                    # hoặc: node tools/serve.js — rồi mở http://localhost:8080
 ```
 
 Cần chạy qua máy chủ web (không mở trực tiếp file `index.html`) vì trang dùng ES module và tải tiếng piano trong `samples/`.
-Có thể bật GitHub Pages cho nhánh `main` để dùng trên điện thoại.
+`tools/serve.js` chỉ dùng Node (không cần Python hay cài gói), vừa phục vụ trang vừa có API lưu dữ liệu vào thư mục `data/`. Cửa sổ lệnh in sẵn địa chỉ để mở trên điện thoại cùng Wi-Fi.
+GitHub Pages chỉ phục vụ được giao diện (không lưu dữ liệu lên máy chủ); khi đó nhập địa chỉ máy chủ riêng trong trang “Lưu trữ”.
 
 Dùng thử bộ phân tích và bộ xếp lộ trình bằng dòng lệnh (Node 18+):
 
@@ -43,7 +46,11 @@ file .mid ──► midi.js ──► analyze.js ──► planner.js ──► 
 | `js/modules.js` | Thư viện kiến thức: mỗi module có giải thích, “vì sao cần cho bài này” (điền số liệu từ bản phân tích), bài khởi động, lỗi hay gặp, câu tự kiểm tra, công cụ đi kèm. Định nghĩa trình độ và hệ số thời gian. |
 | `js/planner.js` | Đếm buổi theo lịch → dành buổi cho nhạc lý nền tảng còn thiếu → giai đoạn hoàn thiện (pedal, nối đoạn, chơi cả bài, sắc thái, tốc độ + video, tổng duyệt) → phần còn lại cho học bài. Ước tính chi phí từng câu, chọn bản biểu diễn, chia câu thành cụm 1–4 ô, sinh việc (tay phải, tay trái, ghép, nối câu, mốc kiểm tra), chia đều vào các buổi, gắn kiến thức “đúng lúc”. |
 | `js/studio.js` | Đàn hướng dẫn và các công cụ nhạc lý. |
-| `js/app.js` | Thư viện bài, form thêm bài, trang tổng quan (biểu đồ độ khó, chọn câu, lịch), trang từng buổi. |
+| `js/app.js` | Thư viện bài, form thêm bài, trang tổng quan (biểu đồ độ khó, chọn câu, lịch), trang từng buổi, trang Lưu trữ, thanh điều hướng dưới cùng trên điện thoại. |
+| `js/sync.js` | Đồng bộ với máy chủ: tự nhận máy chủ, đẩy thay đổi (có hàng chờ khi mất mạng), kéo bản mới hơn, gộp tiến độ. |
+| `tools/serve.js` | Máy chủ Node không phụ thuộc: trang tĩnh + API `/api/songs`, `/api/progress`, mã truy cập `PTP_TOKEN`. |
+| `sw.js`, `manifest.webmanifest`, `icons/` | Cài lên màn hình chính và mở được khi mất mạng. |
+| `Dockerfile` | Chạy máy chủ trên VPS / dịch vụ đám mây, dữ liệu ở `/data`. |
 | `presets/` | Giáo án soạn tay, tự áp dụng khi file MIDI khớp (ví dụ `mr-lawrence.js`). |
 
 ### Mô hình chi phí (có thể chỉnh trong `planner.js`)
